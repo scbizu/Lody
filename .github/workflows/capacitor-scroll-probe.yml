@@ -27,6 +27,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - uses: android-actions/setup-android@v3
       - name: Install workspace and probe dependencies
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
