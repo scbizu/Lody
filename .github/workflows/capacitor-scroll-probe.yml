@@ -1,0 +1,57 @@
+name: Capacitor scroll probe APK
+
+on:
+  push:
+    branches: [test/capacitor-diff-scroll]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    if: github.repository == 'scbizu/Lody'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROBE_DIR: packages/components/tests/capacitor-scroll-probe
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install workspace and probe dependencies
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          npm ci --prefix "$PROBE_DIR" --ignore-scripts
+      - name: Build real component probe
+        run: |
+          npm run check --prefix "$PROBE_DIR"
+          npm run build --prefix "$PROBE_DIR"
+      - name: Generate isolated Android host
+        working-directory: packages/components/tests/capacitor-scroll-probe
+        run: npm run android:prepare
+      - name: Install Android SDK platform
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Assemble debug APK
+        working-directory: packages/components/tests/capacitor-scroll-probe/android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Record source revision
+        run: |
+          mkdir -p probe-artifacts
+          cp "$PROBE_DIR/android/app/build/outputs/apk/debug/app-debug.apk" probe-artifacts/lody-scroll-probe.apk
+          printf '%s\n' "$GITHUB_SHA" > probe-artifacts/source-revision.txt
+          sha256sum probe-artifacts/lody-scroll-probe.apk > probe-artifacts/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lody-scroll-probe-${{ github.sha }}
+          path: probe-artifacts/
+          if-no-files-found: error
+          retention-days: 7
